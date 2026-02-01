@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rotina de Palco Completa</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f3f3;
+      margin: 0;
+      padding: 0;
+    }
+    /* Relógio */
+    .clock-container {
+      background-color: #222;
+      color: #0ff;
+      text-align: center;
+      padding: 15px 10px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .clock-time {
+      font-size: 2.5rem;
+      margin-top: 5px;
+      color: #0f0;
+    }
+    main {
+      padding: 20px;
+    }
+    section {
+      background: #fff;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .btn {
+      background: #28a745;
+      color: #fff;
+      padding: 10px 15px;
+      font-weight: bold;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+    .btn:hover {
+      background: #218838;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 8px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+    .done {
+      text-decoration: line-through;
+      color: gray;
+    }
+    h1 {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Relógio digital -->
+<div class="clock-container">
+  <div id="clock-date">Carregando data...</div>
+  <div id="clock-time" class="clock-time">--:--:--</div>
+</div>
+
+<main>
+  <h1>📋 Rotina de Palco</h1>
+
+  <section>
+    <h2>✅ Chegada ao Trabalho</h2>
+    <button onclick="registrarChegada()">Registrar</button>
+    <p id="chegada"></p>
+  </section>
+
+  <section>
+    <h2>🧥 Organização do Figurino</h2>
+    <form onsubmit="addTarefa(event, 'figurino', 'figurino-tbody')">
+      <input type="text" placeholder="Descrição" required />
+      <input type="time" required />
+      <button type="submit">Adicionar</button>
+    </form>
+    <table>
+      <thead><tr><th>✔️</th><th>Descrição</th><th>Hora</th><th>Concluído em</th></tr></thead>
+      <tbody id="figurino-tbody"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>🎤 Show Pocket</h2>
+    <form onsubmit="addTarefa(event, 'show', 'show-tbody')">
+      <input type="text" placeholder="Descrição" required />
+      <input type="time" required />
+      <button type="submit">Adicionar</button>
+    </form>
+    <table>
+      <thead><tr><th>✔️</th><th>Descrição</th><th>Hora</th><th>Concluído em</th></tr></thead>
+      <tbody id="show-tbody"></tbody>
+    </table>
+  </section>
+</main>
+
+<!-- Botão para salvar PDF -->
+<div style="text-align:center; margin-bottom: 30px;">
+  <button class="btn" onclick="baixarPDF()">📄 Salvar Página Completa como PDF</button>
+</div>
+
+<script>
+  // Relógio ao vivo com data
+  function updateClock() {
+    const now = new Date();
+    const days = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    const dayName = days[now.getDay()];
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = months[now.getMonth()];
+    const year = now.getFullYear();
+
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    document.getElementById('clock-date').textContent = `${dayName}, ${day} de ${month} de ${year}`;
+    document.getElementById('clock-time').textContent = `${hours}:${minutes}:${seconds}`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // Chegada
+  function registrarChegada() {
+    const hora = new Date().toLocaleTimeString();
+    document.getElementById("chegada").textContent = `Chegada registrada às ${hora}`;
+    localStorage.setItem("chegada", hora);
+  }
+
+  // Ao carregar a página
+  window.onload = () => {
+    const chegada = localStorage.getItem("chegada");
+    if (chegada) {
+      document.getElementById("chegada").textContent = `Chegada registrada às ${chegada}`;
+    }
+    ['figurino', 'show'].forEach(tipo => {
+      const dados = JSON.parse(localStorage.getItem(tipo) || "[]");
+      dados.forEach(t => renderTarefa(t, tipo + '-tbody', tipo));
+    });
+  };
+
+  // Adiciona nova tarefa
+  function addTarefa(e, tipo, tbodyId) {
+    e.preventDefault();
+    const form = e.target;
+    const descricao = form.querySelector("input[type='text']").value;
+    const hora = form.querySelector("input[type='time']").value;
+    const tarefa = { descricao, hora, concluido: false, horaConclusao: "" };
+    renderTarefa(tarefa, tbodyId, tipo);
+    salvarTarefa(tipo, tarefa);
+    form.reset();
+  }
+
+  // Renderiza tarefa na tabela
+  function renderTarefa(tarefa, tbodyId, tipo) {
+    const tbody = document.getElementById(tbodyId);
+    const tr = document.createElement("tr");
+
+    const tdCheck = document.createElement("td");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = tarefa.concluido;
+    tdCheck.appendChild(checkbox);
+
+    const tdDesc = document.createElement("td");
+    tdDesc.textContent = tarefa.descricao;
+    if (tarefa.concluido) tdDesc.classList.add("done");
+
+    const tdHora = document.createElement("td");
+    tdHora.textContent = tarefa.hora;
+
+    const tdConcluido = document.createElement("td");
+    tdConcluido.textContent = tarefa.horaConclusao;
+
+    checkbox.addEventListener("change", () => {
+      tarefa.concluido = checkbox.checked;
+      tarefa.horaConclusao = tarefa.concluido ? new Date().toLocaleTimeString() : "";
+      tdConcluido.textContent = tarefa.horaConclusao;
+      tdDesc.classList.toggle("done", tarefa.concluido);
+      atualizarStorage(tipo, tbodyId);
+    });
+
+    tr.appendChild(tdCheck);
+    tr.appendChild(tdDesc);
+    tr.appendChild(tdHora);
+    tr.appendChild(tdConcluido);
+    tbody.appendChild(tr);
+  }
+
+  function salvarTarefa(tipo, tarefa) {
+    const lista = JSON.parse(localStorage.getItem(tipo) || "[]");
+    lista.push(tarefa);
+    localStorage.setItem(tipo, JSON.stringify(lista));
+  }
+
+  function atualizarStorage(tipo, tbodyId) {
+    const tbody = document.getElementById(tbodyId);
+    const tarefas = [];
+    tbody.querySelectorAll("tr").forEach(tr => {
+      tarefas.push({
+        descricao: tr.children[1].textContent,
+        hora: tr.children[2].textContent,
+        concluido: tr.children[0].querySelector("input").checked,
+        horaConclusao: tr.children[3].textContent
+      });
+    });
+    localStorage.setItem(tipo, JSON.stringify(tarefas));
+  }
+
+  // Salvar toda página como PDF, incluindo relógio
+  function baixarPDF() {
+    const el = document.body; // captura tudo
+    html2pdf().set({
+      margin: 10,
+      filename: 'rotina-completa.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(el).save();
+  }
+</script>
+<a href="index01.html"><h2>Ir para a próxima página</h2></a>
+</body>
+</html>
